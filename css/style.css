@@ -213,7 +213,7 @@ nav .nav-links a:hover {
 }
 
 .treatment-card.active {
-    display: block;
+    display: block; 
 }
 
 .treatment-card img {
