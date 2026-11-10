@@ -24,13 +24,86 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax_contact'])) {
     exit;
 }
 ?>
+
+<?php
+// Dimensioni reali delle immagini: permettono al browser di riservare lo spazio
+// giusto PRIMA del caricamento (migliora il CLS, una delle metriche di PageSpeed).
+function lb_img_dim($path) {
+    $info = @getimagesize(__DIR__ . '/' . $path);
+    return $info ? [$info[0], $info[1]] : [800, 600];
+}
+?>
 <!DOCTYPE html>
 <html lang="it">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>La Beauté</title>
+    <meta name="description" content="La Beauté, centro estetico a Roma: trattamenti viso, corpo, mani e piedi, Endosphères, massaggi ed epilazione. Chiama e fissa un appuntamento: 06-83901083.">
     <link rel="stylesheet" href="css/style.css">
+    <?php if (file_exists(__DIR__ . '/img/favicon.png')) echo '<link rel="icon" type="image/png" href="img/favicon.png">'; ?>
+    <!-- Precarica subito l'immagine principale del carosello (è il candidato LCP) -->
+    <link rel="preload" as="image" href="img/first.webp" fetchpriority="high">
+
+    <style>
+        /* ====== COOKIE BANNER: stili aggiuntivi (puoi spostarli in style.css) ====== */
+        #cookieBanner {
+            position: fixed; left: 0; right: 0; bottom: 0; z-index: 9999;
+            background: #ffffff; color: #333333;
+            box-shadow: 0 -4px 16px rgba(0, 0, 0, .25);
+            padding: 16px 20px; font-size: 14px; line-height: 1.55;
+            display: none; /* appare solo se l'utente non ha ancora fatto una scelta */
+        }
+        #cookieBanner.show { display: block; }
+        #cookieBanner .cb-inner { max-width: 960px; margin: 0 auto; padding-right: 30px; }
+        #cookieBanner .cb-actions { margin-top: 10px; display: flex; gap: 10px; flex-wrap: wrap; }
+        #cookieBanner button {
+            border: 1px solid #999999; background: #ffffff; color: #333333;
+            padding: 8px 18px; border-radius: 4px; cursor: pointer; font-size: 14px;
+        }
+        #cookieBanner button.cb-accept { background: #333333; color: #ffffff; border-color: #333333; }
+        #cookieBanner button:hover { opacity: .85; }
+        #cookieBanner .cb-close {
+            position: absolute; top: 6px; right: 10px;
+            background: none; border: none; font-size: 22px; line-height: 1; padding: 4px;
+        }
+        #cookieBanner a { color: inherit; }
+
+        /* Pulsantino fisso per riaprire le preferenze in qualsiasi momento */
+        #cookiePrefs {
+            position: fixed; left: 10px; bottom: 10px; z-index: 9998;
+            background: rgba(0, 0, 0, .55); color: #ffffff; border: none; border-radius: 16px;
+            padding: 5px 14px; font-size: 12px; cursor: pointer;
+        }
+
+        /* Placeholder della mappa prima del consenso (click-to-load) */
+        .map-wrap { position: relative; }
+        .map-placeholder {
+            position: absolute; top: 0; right: 0; bottom: 0; left: 0;
+            background: #f2f2f2; color: #555555;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            text-align: center; gap: 12px; padding: 20px; font-size: 15px;
+        }
+        .map-placeholder button {
+            border: 1px solid #999999; background: #ffffff; color: #333333;
+            padding: 8px 18px; border-radius: 4px; cursor: pointer; font-size: 14px;
+        }
+
+        /* ====== SEZIONE RECENSIONI GOOGLE (statiche, scelte a mano) ====== */
+        .rec-wrap { display: flex; flex-wrap: wrap; gap: 16px; }
+        .rec-card {
+            flex: 1 1 280px;
+            background: #fafafa;
+            border: 1px solid #eeeeee;
+            border-radius: 8px;
+            padding: 18px 20px;
+        }
+        .rec-stars { color: #e7a500; font-size: 18px; letter-spacing: 3px; margin-bottom: 8px; }
+        .rec-text { font-style: italic; line-height: 1.6; margin: 0 0 10px; }
+        .rec-author { font-size: 13px; color: #777777; margin: 0; }
+        .rec-link { text-align: center; margin-top: 18px; }
+        .rec-link a { color: inherit; }
+    </style>
     
 </head>
 <body id="page-top">
@@ -38,14 +111,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax_contact'])) {
     <nav>
         <a class="myfont logo" href="#page-top">La Beaut&eacute;</a>
 
-		<!-- Tasto Hamburger per Mobile -->
-		<button class="nav-toggle" id="navToggle" aria-label="Menu di navigazione">
-			<span></span>
-			<span></span>
-			<span></span>
-		</button>
+                <!-- Tasto Hamburger per Mobile -->
+                <button class="nav-toggle" id="navToggle" aria-label="Menu di navigazione">
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                </button>
 
         <ul class="nav-links" id="navLinks">
+            <li><a class="myfont" href="#recensioni">Le Recensioni dei Clienti</a></li>
             <li><a class="myfont" href="#about">I Nostri Trattamenti</a></li>
             <li><a class="myfont" href="#services">Dove Siamo</a></li>
             <li><a class="myfont" href="#contact">Contatti</a></li>
@@ -68,12 +142,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax_contact'])) {
             <!-- Carosello Vanilla JS -->
             <div class="carousel">
                 <div class="carousel-slide" id="carouselSlide">
-                    <img src="img/first.webp" alt="La Beaut&eacute;" width="560" height="320">
-                    <img src="img/second.webp" alt="La Beaut&eacute;" width="560" height="320">
-                    <img src="img/third.webp" alt="La Beaut&eacute;" width="560" height="320">
-                    <img src="img/fourth.webp" alt="La Beaut&eacute;" width="560" height="320">
+                    <img src="img/first.webp" alt="La Beaut&eacute;" width="560" height="320" fetchpriority="high">
+                    <img src="img/second.webp" alt="La Beaut&eacute;" width="560" height="320" loading="lazy">
+                    <img src="img/third.webp" alt="La Beaut&eacute;" width="560" height="320" loading="lazy">
+                    <img src="img/fourth.webp" alt="La Beaut&eacute;" width="560" height="320" loading="lazy">
                 </div>
             </div>
+        </section>
+
+        <!-- Recensioni Google: sezione STATICA, le recensioni sono trascritte a mano
+             dalla scheda Google Maps, così si sceglie esattamente quali mostrare.
+             Per aggiungerne una: copia un blocco .rec-card e cambia stelle/testo/nome. -->
+        <section id="recensioni" class="container">
+            <h1 id="myPuntualFont">Le Recensioni dei Clienti</h1>
+            <div class="rec-wrap">
+                <div class="rec-card">
+                    <div class="rec-stars" aria-label="Valutazione: 4 stelle su 5">★★★★<span style="color:#cccccc">★</span></div>
+                    <p class="rec-text">«Ambiente familiare dove ti senti accolta da tutte come fossi un'amica. Tutte simpatiche, gentili e disponibili, a cominciare da Natalya, la titolare, a tutte le ragazze.»</p>
+                    <p class="rec-author">Paola Cordella &middot; recensione su Google</p>
+                </div>
+                <div class="rec-card">
+                    <div class="rec-stars" aria-label="Valutazione: 5 stelle su 5">★★★★★</div>
+                    <p class="rec-text">«Se ci fossero mettere 100 stelle! Bravissime e gentilissime!»</p>
+                    <p class="rec-author">Angela Lorusso &middot; recensione su Google</p>
+                </div>
+            </div>
+            <p class="rec-link">
+                <a href="https://www.google.com/maps?cid=5052601546769133999" target="_blank" rel="noopener">Leggi tutte le recensioni su Google Maps &rarr;</a>
+            </p>
         </section>
 
         <!-- Trattamenti Dinamici -->
@@ -95,19 +191,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax_contact'])) {
             <div class="treatment-card active" data-category="mani">
                 <h4 id="myPuntualFont">Trattamenti Mani e Piedi</h4>
                 <p id="obliquo">Per chi vive la bellezza a 360°</p>
-                <img src="img/mani.webp" alt="Trattamenti Mani e Piedi" loading="lazy">
+                <?php [$iw, $ih] = lb_img_dim('img/mani.webp'); ?>
+                <img src="img/mani.webp" alt="Trattamenti Mani e Piedi" loading="lazy" decoding="async" width="<?= $iw ?>" height="<?= $ih ?>">
             </div>
 
             <div class="treatment-card active" data-category="viso">
                 <h4 id="myPuntualFont">Trattamento Viso</h4>
                 <p id="obliquo">Riportiamo la pelle del viso al suo naturale splendore con i nostri trattamenti specifici in funzione del tipo di pelle</p>
-                <img src="img/rf_viso.webp" alt="Trattamento Viso" loading="lazy">
+                <?php [$iw, $ih] = lb_img_dim('img/rf_viso.webp'); ?>
+                <img src="img/rf_viso.webp" alt="Trattamento Viso" loading="lazy" decoding="async" width="<?= $iw ?>" height="<?= $ih ?>">
             </div>
 
             <div class="treatment-card active" data-category="corpo">
                 <h4 id="myPuntualFont">Trattamento Corpo</h4>
                 <p id="obliquo">Con uso di <b><u>Radiofrequenza Quadripolare Dinamica</u></b> combatte <b><u>Lassità</u></b> cutanea e migliora la <b><u>Texture</u></b> della pelle</p>
-                <img src="img/rqd.webp" alt="Trattamento Corpo" loading="lazy">
+                <?php [$iw, $ih] = lb_img_dim('img/rqd.webp'); ?>
+                <img src="img/rqd.webp" alt="Trattamento Corpo" loading="lazy" decoding="async" width="<?= $iw ?>" height="<?= $ih ?>">
             </div>
 
             <div class="treatment-card active" data-category="endosphere">
@@ -119,12 +218,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax_contact'])) {
                     <li>Ridurre la pelle a "Buccia d'Arancia"</li>
                     <li>Elimina i liquidi in eccesso, donando leggerezza alle gambe</li>
                 </ul><br>
-                <img src="img/endosphere.webp" alt="Endosphères Therapy" loading="lazy">
+                <?php [$iw, $ih] = lb_img_dim('img/endosphere.webp'); ?>
+                <img src="img/endosphere.webp" alt="Endosphères Therapy" loading="lazy" decoding="async" width="<?= $iw ?>" height="<?= $ih ?>">
             </div>
 
             <div class="treatment-card active" data-category="massaggi">
                 <h4 id="myPuntualFont">L' Angolo dei Massaggi</h4>
-                <img src="img/massaggi.webp" alt="Massaggi" loading="lazy">
+                <?php [$iw, $ih] = lb_img_dim('img/massaggi.webp'); ?>
+                <img src="img/massaggi.webp" alt="Massaggi" loading="lazy" decoding="async" width="<?= $iw ?>" height="<?= $ih ?>">
             </div>
 
             <div class="treatment-card active" data-category="epilazione">
@@ -135,7 +236,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax_contact'])) {
                     <li>Fotoepilazione Permanente con luce Pulsata.</li>
                     <li>Elettrocoagulazione.</li>
                 </ul><br>
-                <img src="img/epilazione.webp" alt="Epilazione" loading="lazy">
+                <?php [$iw, $ih] = lb_img_dim('img/epilazione.webp'); ?>
+                <img src="img/epilazione.webp" alt="Epilazione" loading="lazy" decoding="async" width="<?= $iw ?>" height="<?= $ih ?>">
             </div>
         </section>
 
@@ -143,7 +245,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax_contact'])) {
         <section id="services" class="container">
             <h1 id="myPuntualFont">Dove Siamo</h1>
             <div class="map-wrap">
-                <iframe src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d2971.737853876107!2d12.484667315232361!3d41.855468974809504!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x13258a63b2d902f3%3A0x461e725642c371af!2sLa+Beaut%C3%A9!5e0!3m2!1sit!2sit!4v1500503116292" width="100%" height="450" frameborder="0" style="border:0;" allowfullscreen></iframe>
+                <!-- Cookie: la mappa NON viene caricata finché l'utente non dà il consenso -->
+                <iframe id="gmapIframe" data-src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d2971.737853876107!2d12.484667315232361!3d41.855468974809504!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x13258a63b2d902f3%3A0x461e725642c371af!2sLa+Beaut%C3%A9!5e0!3m2!1sit!2sit!4v1500503116292" width="100%" height="450" frameborder="0" style="border:0;" allowfullscreen title="Mappa: Dove siamo"></iframe>
+                <div id="mapPlaceholder" class="map-placeholder">
+                    <p>La mappa è fornita da <b>Google Maps</b> e per visualizzarla<br>vengono installati cookie di terze parti di Google.</p>
+                    <button type="button" id="loadMapBtn">Carica la mappa (accetto i cookie di Google Maps)</button>
+                </div>
             </div>
         </section>
 
@@ -174,25 +281,43 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax_contact'])) {
         </section>
     </main>
 
+    <!-- ====== COOKIE BANNER (obbligatorio: il sito incorpora Google Maps) ====== -->
+    <div id="cookieBanner" role="dialog" aria-live="polite" aria-label="Informativa cookie">
+        <button type="button" class="cb-close" id="cbClose" aria-label="Chiudi e prosegui senza accettare">&times;</button>
+        <div class="cb-inner">
+            <p>
+                <b>Informativa breve:</b> questo sito usa solo memorie tecniche necessarie al suo funzionamento
+                (ad esempio per ricordare le tue scelte) e, soltanto con il tuo consenso, cookie di terze parti di
+                <b>Google Maps</b>, che servono a mostrarti la mappa della sede. Nessun cookie viene installato
+                prima della tua scelta. <a href="cookie-policy.html">Informativa completa sui cookie</a>
+            </p>
+            <div class="cb-actions">
+                <button type="button" class="cb-accept" id="cbAccept">Accetta i cookie</button>
+                <button type="button" id="cbRefuse">Rifiuta</button>
+            </div>
+        </div>
+    </div>
+    <button type="button" id="cookiePrefs" title="Gestisci le preferenze sui cookie">Cookie</button>
+
     <script>
         // Carosello Automatico Vanilla
         const slide = document.getElementById('carouselSlide');
         let index = 0;
         const total = slide.children.length;
-		const navToggle = document.getElementById('navToggle');
-		const navLinks = document.getElementById('navLinks');
+                const navToggle = document.getElementById('navToggle');
+                const navLinks = document.getElementById('navLinks');
 
-		// Apertura / Chiusura al click sul pulsante
-		navToggle.addEventListener('click', () => {
-			navLinks.classList.toggle('active');
-		});
+                // Apertura / Chiusura al click sul pulsante
+                navToggle.addEventListener('click', () => {
+                        navLinks.classList.toggle('active');
+                });
 
-		// Chiusura automatica quando si tocca uno dei link
-		navLinks.querySelectorAll('a').forEach(link => {
-			link.addEventListener('click', () => {
-				navLinks.classList.remove('active');
-			});
-		});
+                // Chiusura automatica quando si tocca uno dei link
+                navLinks.querySelectorAll('a').forEach(link => {
+                        link.addEventListener('click', () => {
+                                navLinks.classList.remove('active');
+                        });
+                });
 
         setInterval(() => {
             index = (index + 1) % total;
@@ -253,6 +378,54 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax_contact'])) {
                 btn.textContent = 'Invia';
             });
         });
+
+        // ====== GESTIONE CONSENSO COOKIE (aggiunta) ======
+        const CB_KEY = 'lb-cookie-consent';
+        const cbBanner   = document.getElementById('cookieBanner');
+        const gmap       = document.getElementById('gmapIframe');
+        const mapPh      = document.getElementById('mapPlaceholder');
+        const loadMapBtn = document.getElementById('loadMapBtn');
+
+        function getConsent() { try { return localStorage.getItem(CB_KEY); } catch (e) { return null; } }
+        function setConsent(v) { try { localStorage.setItem(CB_KEY, v); } catch (e) {} }
+
+        // La mappa parte SOLO qui: prima di questo momento Google non riceve nessuna richiesta
+        function loadMap() {
+            if (gmap.getAttribute('src') !== gmap.dataset.src) {
+                gmap.setAttribute('src', gmap.dataset.src);
+            }
+            mapPh.style.display = 'none';
+        }
+        function unloadMap() {
+            gmap.removeAttribute('src');
+            mapPh.style.display = 'flex';
+        }
+
+        document.getElementById('cbAccept').addEventListener('click', function () {
+            setConsent('accepted'); cbBanner.classList.remove('show'); loadMap();
+        });
+        document.getElementById('cbRefuse').addEventListener('click', function () {
+            setConsent('refused'); cbBanner.classList.remove('show'); unloadMap();
+        });
+        // Chiudere con la X equivale a proseguire senza accettare
+        document.getElementById('cbClose').addEventListener('click', function () {
+            setConsent('refused'); cbBanner.classList.remove('show'); unloadMap();
+        });
+        // Consenso "granulare": l'utente carica la mappa solo se la vuole
+        loadMapBtn.addEventListener('click', function () {
+            setConsent('accepted'); cbBanner.classList.remove('show'); loadMap();
+        });
+        // Riapertura del pannello (cambio idea / revoca del consenso)
+        document.getElementById('cookiePrefs').addEventListener('click', function () {
+            cbBanner.classList.add('show');
+        });
+
+        // Stato iniziale
+        if (getConsent() === 'accepted') {
+            loadMap();
+        } else if (getConsent() === null) {
+            cbBanner.classList.add('show'); // prima visita: nessun cookie di Google ancora installato
+        }
     </script>
 </body>
 </html>

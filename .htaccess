@@ -1,0 +1,39 @@
+# ============================================================
+# Ottimizzazioni PageSpeed - Apache
+# (LiteSpeed lo legge ugualmente; su Nginx chiedi all'hoster l'equivalente)
+# ============================================================
+
+# --- Compressione gzip per i file di testo ---
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/html text/plain text/css text/javascript
+    AddOutputFilterByType DEFLATE application/javascript application/json
+    AddOutputFilterByType DEFLATE image/svg+xml
+</IfModule>
+
+# --- Cache del browser ---
+<IfModule mod_expires.c>
+    ExpiresActive On
+
+    # HTML: sempre fresco (il banner cookie deve reagire subito)
+    ExpiresByType text/html "access plus 0 seconds"
+
+    # CSS e JS: una settimana
+    ExpiresByType text/css "access plus 1 week"
+    ExpiresByType application/javascript "access plus 1 week"
+
+    # Immagini: un mese (se cambi un'immagine, rinominala per invalidare la cache)
+    ExpiresByType image/webp "access plus 1 month"
+    ExpiresByType image/jpeg "access plus 1 month"
+    ExpiresByType image/png "access plus 1 month"
+    ExpiresByType image/svg+xml "access plus 1 month"
+
+    # Font: un anno (se cambi un font, rinominalo)
+    ExpiresByType font/woff2 "access plus 1 year"
+    ExpiresByType font/woff "access plus 1 year"
+    ExpiresByType application/font-woff2 "access plus 1 year"
+</IfModule>
+
+# --- Extra di sicurezza consigliati ---
+<IfModule mod_headers.c>
+    Header set X-Content-Type-Options "nosniff"
+</IfModule>
